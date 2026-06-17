@@ -1783,6 +1783,23 @@ def test_equity_market_snapshots(params, obb):
 @pytest.mark.parametrize(
     "params",
     [
+        ({"exchange": "XNYS", "provider": "headless_oracle"}),
+    ],
+)
+@pytest.mark.integration
+def test_equity_market_state(params, obb):
+    """Test the equity market state endpoint."""
+    result = obb.equity.market_state(**params)
+    assert result
+    assert isinstance(result, OBBject)
+    assert result.results is not None
+    assert result.results.mic == "XNYS"
+    assert result.results.status is not None
+
+
+@pytest.mark.parametrize(
+    "params",
+    [
         ({"symbol": "AAPL", "limit": 5, "provider": "fmp"}),
         (
             {

@@ -1906,6 +1906,24 @@ def test_equity_fundamental_historical_eps(params, headers):
 
 @pytest.mark.parametrize(
     "params",
+    [
+        ({"exchange": "XNYS", "provider": "headless_oracle"}),
+    ],
+)
+@pytest.mark.integration
+def test_equity_market_state(params, headers):
+    """Test the equity market state endpoint."""
+    params = {p: v for p, v in params.items() if v}
+
+    query_str = get_querystring(params, [])
+    url = f"http://0.0.0.0:8000/api/v1/equity/market_state?{query_str}"
+    result = requests.get(url, headers=headers, timeout=10)
+    assert isinstance(result, requests.Response)
+    assert result.status_code == 200
+
+
+@pytest.mark.parametrize(
+    "params",
     [{"provider": "tiingo", "symbol": "AAPL", "limit": 10}],
 )
 @pytest.mark.integration
