@@ -1,9 +1,7 @@
 """RSS Latest Financials Model."""
 
-# pylint: disable=unused-argument
-
 from datetime import date as dateType
-from typing import Any
+from typing import Any, cast
 
 from openbb_core.app.model.abstract.error import OpenBBError
 from openbb_core.provider.abstract.fetcher import Fetcher
@@ -38,7 +36,15 @@ class SecLatestFinancialReportsQueryParams(LatestFinancialReportsQueryParams):
     """
 
     __json_schema_extra__ = {
-        "report_type": {"multiple_items_allowed": True, "choices": report_type_choices}
+        "report_type": {
+            "multiple_items_allowed": True,
+            "choices": report_type_choices,
+            "x-widget_config": {
+                "type": "endpoint",
+                "optionsEndpoint": "/api/v1/sec/report_types",
+                "multiSelect": False,
+            },
+        }
     }
 
     date: dateType | None = Field(
@@ -101,7 +107,6 @@ class SecLatestFinancialReportsFetcher(
         **kwargs: Any,
     ) -> list[dict]:
         """Extract the raw data from the SEC."""
-        # pylint: disable=import-outside-toplevel
         from datetime import timedelta  # noqa
         from openbb_core.provider.utils.helpers import amake_request
         from warnings import warn
@@ -167,7 +172,7 @@ class SecLatestFinancialReportsFetcher(
                 warn(f"Failed to get the next page of SEC data: {e}")
                 break
 
-            hits = response.get("hits", {})
+            hits = cast("dict", response).get("hits", {})
             new_results = hits.get("hits", [])
 
             if not new_results:
