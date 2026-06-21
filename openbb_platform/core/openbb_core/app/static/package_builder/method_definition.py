@@ -38,12 +38,13 @@ if TYPE_CHECKING:
     from pandas import DataFrame, Series  # noqa
     from openbb_core.provider.abstract.data import Data  # noqa
 
-try:
-    from openbb_charting import Charting  # type: ignore
+from openbb_core.app.charting import ChartingManager
 
-    CHARTING_INSTALLED = True  # pragma: no cover
-except ImportError:  # pragma: no cover
-    CHARTING_INSTALLED = False
+# Resolved through the charting manager so a drop-in engine override is honored
+# instead of importing ``openbb_charting`` by name. ``Charting`` is the resolved
+# engine accessor class (or ``None`` when no engine is installed).
+Charting = ChartingManager.get_charting_class()
+CHARTING_INSTALLED = Charting is not None
 
 try:
     _HAS_FCNTL = True
@@ -536,7 +537,11 @@ class MethodDefinition:
         path_params = PathHandler.extract_path_parameters(path)
 
         # we need to add the chart parameter here bc of the docstring generation
-        if CHARTING_INSTALLED and path.replace("/", "_")[1:] in Charting.functions():
+        if (
+            CHARTING_INSTALLED
+            and Charting is not None
+            and path.replace("/", "_")[1:] in Charting.functions()
+        ):
             parameter_map["chart"] = Parameter(
                 name="chart",
                 kind=Parameter.POSITIONAL_OR_KEYWORD,
@@ -1200,7 +1205,11 @@ class MethodDefinition:
         if dependency_calls:
             code += "\n".join(dependency_calls) + "\n\n"
 
-        if CHARTING_INSTALLED and path.replace("/", "_")[1:] in Charting.functions():
+        if (
+            CHARTING_INSTALLED
+            and Charting is not None
+            and path.replace("/", "_")[1:] in Charting.functions()
+        ):
             parameter_map["chart"] = Parameter(
                 name="chart",
                 kind=Parameter.POSITIONAL_OR_KEYWORD,
