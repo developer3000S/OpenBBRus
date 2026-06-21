@@ -11,26 +11,31 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.params import Depends as DependsParam
 from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
+from pydantic import BaseModel
+from typing_extensions import ParamSpec
+
 from openbb_core.app.command_runner import CommandRunner
 from openbb_core.app.model.abstract.error import OpenBBError
 from openbb_core.app.model.command_context import CommandContext
 from openbb_core.app.model.obbject import OBBject
 from openbb_core.app.model.user_settings import UserSettings
+from openbb_core.app.route_iter import iter_api_routes
 from openbb_core.app.router import RouterLoader
 from openbb_core.app.service.auth_service import AuthService
 from openbb_core.app.service.system_service import SystemService
 from openbb_core.app.service.user_service import UserService
+from openbb_core.app.utils_optional import is_installed
 from openbb_core.env import Env
 from openbb_core.provider.utils.helpers import to_snake_case
-from pydantic import BaseModel
-from typing_extensions import ParamSpec
 
-try:
-    from openbb_charting import Charting
+CHARTING_INSTALLED = is_installed("openbb_charting")
+Charting = None
+if CHARTING_INSTALLED:
+    import importlib
 
-    CHARTING_INSTALLED = True
-except ImportError:
-    CHARTING_INSTALLED = False
+    Charting = getattr(
+        importlib.import_module("openbb_charting"), "Charting"
+    )  # pragma: no cover
 
 T = TypeVar("T")
 P = ParamSpec("P")
@@ -104,7 +109,11 @@ def build_new_signature(path: str, func: Callable) -> Signature:
             )
         )
 
-    if CHARTING_INSTALLED and path.replace("/", "_")[1:] in Charting.functions():
+    if (
+        CHARTING_INSTALLED
+        and Charting is not None
+        and path.replace("/", "_")[1:] in Charting.functions()
+    ):
         new_parameter_list.insert(
             var_kw_pos,
             Parameter(
@@ -214,8 +223,8 @@ def build_api_wrapper(
     route: APIRoute,
 ) -> Callable:
     """Build API wrapper for a command."""
-    func: Callable = route.endpoint  # type: ignore
-    path: str = route.path  # type: ignore
+    func: Callable = route.endpoint
+    path: str = route.path
     original_signature = signature(func)
     has_var_kwargs = any(
         param.kind == Parameter.VAR_KEYWORD
@@ -235,7 +244,7 @@ def build_api_wrapper(
         route.response_model = None
 
     @wraps(wrapped=func)
-    async def wrapper(  # pylint: disable=R0914,R0912  # noqa: PLR0912
+    async def wrapper(  # noqa: PLR0912
         *args: tuple[Any], **kwargs: dict[str, Any]
     ) -> OBBject | JSONResponse:
         user_settings: UserSettings = UserSettings.model_validate(
@@ -329,7 +338,7 @@ def build_api_wrapper(
                     return JSONResponse(
                         content=jsonable_encoder(output), status_code=200
                     )
-            except Exception as exc:  # pylint: disable=W0703
+            except Exception as exc:
                 raise OpenBBError(
                     f"Error serializing output for an extension-modified endpoint {path}: {exc}",
                 ) from exc
@@ -345,9 +354,16 @@ def build_api_wrapper(
 def add_command_map(command_runner: CommandRunner, api_router: APIRouter) -> None:
     """Add command map to the API router."""
     plugins_router = RouterLoader.from_extensions()
-
-    for route in plugins_router.api_router.routes:
-        route.endpoint = build_api_wrapper(command_runner=command_runner, route=route)  # type: ignore # noqa
+    for effective in iter_api_routes(plugins_router.api_router):
+        leaf = getattr(effective, "original_route", effective)
+        if not isinstance(leaf, APIRoute):
+            continue
+        original_leaf_path = leaf.path
+        leaf.path = effective.path
+        try:
+            leaf.endpoint = build_api_wrapper(command_runner=command_runner, route=leaf)
+        finally:
+            leaf.path = original_leaf_path
     api_router.include_router(router=plugins_router.api_router)
 
 

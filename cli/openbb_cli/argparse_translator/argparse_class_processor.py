@@ -3,7 +3,6 @@
 import inspect
 from typing import Any
 
-# TODO: this needs to be done differently
 from openbb_core.app.static.container import Container
 
 from openbb_cli.argparse_translator.argparse_translator import ArgparseTranslator
@@ -15,7 +14,6 @@ from openbb_cli.argparse_translator.reference_processor import (
 class ArgparseClassProcessor:
     """Process a target class to create ArgparseTranslators for its methods."""
 
-    # reference variable used to create custom groups for the ArgpaseTranslators
     _reference: dict[str, Any] = {}
 
     def __init__(
@@ -24,8 +22,7 @@ class ArgparseClassProcessor:
         add_help: bool = False,
         reference: dict[str, Any] | None = None,
     ):
-        """
-        Initialize the ArgparseClassProcessor.
+        """Initialize the ArgparseClassProcessor.
 
         Parameters
         ----------
@@ -49,8 +46,7 @@ class ArgparseClassProcessor:
 
     @property
     def translators(self) -> dict[str, ArgparseTranslator]:
-        """
-        Get the ArgparseTranslators associated with the target class.
+        """Get the ArgparseTranslators associated with the target class.
 
         Returns
         -------
@@ -61,8 +57,7 @@ class ArgparseClassProcessor:
 
     @property
     def paths(self) -> dict[str, str]:
-        """
-        Get the paths associated with the target class.
+        """Get the paths associated with the target class.
 
         Returns
         -------
@@ -78,7 +73,7 @@ class ArgparseClassProcessor:
         if not reference:
             return {}
         rp = ReferenceToArgumentsProcessor(reference)
-        return rp.custom_groups.get(route, {})  # type: ignore
+        return rp.custom_groups.get(route, {})  # ty: ignore[invalid-return-type]
 
     @classmethod
     def _process_class(
@@ -96,7 +91,7 @@ class ArgparseClassProcessor:
                 methods[f"{class_name}_{name}"] = ArgparseTranslator(
                     func=member,
                     add_help=add_help,
-                    custom_argument_groups=cls._custom_groups_from_reference(  # type: ignore
+                    custom_argument_groups=cls._custom_groups_from_reference(  # ty: ignore[invalid-argument-type]
                         class_name=class_name, function_name=name
                     ),
                 )
@@ -121,8 +116,7 @@ class ArgparseClassProcessor:
         )
 
     def get_translator(self, command: str) -> ArgparseTranslator:
-        """
-        Retrieve the ArgparseTranslator object associated with a specific menu and command.
+        """Retrieve the ArgparseTranslator associated with a command.
 
         Parameters
         ----------
@@ -136,12 +130,10 @@ class ArgparseClassProcessor:
         """
         return self._translators[command]
 
-    def _build_paths(self, target: type, depth: int = 1):
+    def _build_paths(self, target: type):
+        """Record direct sub-namespaces only."""
         for name, member in inspect.getmembers(target):
-            if name.startswith("__") or name.startswith("_"):
+            if name.startswith("_"):
                 continue
-            if inspect.ismethod(member):
-                pass
-            elif isinstance(member, Container):
-                self._build_paths(target=getattr(target, name), depth=depth + 1)
-                self._paths[f"{name}"] = "sub" * depth + "path"
+            if isinstance(member, Container):
+                self._paths[f"{name}"] = "subpath"
